@@ -5,13 +5,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// ── Android Material You dark palette ──────────────────────────────
-const BG       = '#1C1B1F';
-const BTN_NUM  = '#2B2930';
-const BTN_FUNC = '#48464E';
-const BTN_OP   = '#4A4458';
-const BTN_OP_A = '#D0BCFF'; // active op (inverted)
-const BTN_EQ   = '#6650A4';
+// ── Color palette (matches calculator.html) ────────────────────────
+const BG       = '#1c1c1e';
+const BTN_NUM  = '#1c1c1e';
+const BTN_FUNC = '#2c2c2e';
+const BTN_OP   = '#ff9f0a';
+const BTN_OP_A = '#ffffff'; // active op bg (inverted)
+const BTN_EQ   = '#ff9f0a';
 
 type Op = '+' | '−' | '×' | '÷' | null;
 
@@ -52,15 +52,14 @@ function compute(a: string, op: Op, b: string): string {
 
 export default function Calculator() {
   const [s, setS] = useState<S>(INIT);
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  const GAP = 10;
+  const GAP = 12;
   const PAD = 12;
-  const btnW = Math.floor((width - PAD * 2 - GAP * 3) / 4);
-  const gridH = height - insets.top - insets.bottom - height * 0.38;
-  const btnH = Math.floor((gridH - GAP * 4) / 5);
-  const radius = Math.min(btnH / 2, 36);
+  // Circles: diameter determined by available width, 4 per row
+  const btnSize = Math.floor((width - PAD * 2 - GAP * 3) / 4);
+  const fontSize = Math.floor(btnSize * 0.4);
 
   function press(action: string, val?: string) {
     setS(prev => {
@@ -154,13 +153,13 @@ export default function Calculator() {
       { label: '+', action: 'op', val: '+', bg: BTN_OP, fg: '#fff', flex: 1 },
     ],
     [
-      { label: '0', action: 'num', val: '0', bg: BTN_NUM, fg: '#fff', flex: 2, alignLeft: true },
+      { label: '0', action: 'num', val: '0', bg: BTN_NUM, fg: '#fff', flex: 2 },
       { label: '.', action: 'dot', bg: BTN_NUM, fg: '#fff', flex: 1 },
       { label: '=', action: 'equals', bg: BTN_EQ, fg: '#fff', flex: 1 },
     ],
   ] as const;
 
-  const displayFontSize = s.display.length > 9 ? btnH * 0.38 : btnH * 0.55;
+  const displayFontSize = s.display.length > 9 ? btnSize * 0.38 : btnSize * 0.55;
 
   return (
     <View style={[styles.root, { backgroundColor: BG, paddingBottom: insets.bottom, paddingTop: insets.top }]}>
@@ -184,20 +183,19 @@ export default function Calculator() {
             {row.map((btn) => {
               const isActive = btn.action === 'op' && s.activeOp === btn.val;
               const bg = isActive ? BTN_OP_A : btn.bg;
-              const fg = isActive ? '#1C1B1F' : btn.fg;
-              const w = btn.flex === 2 ? btnW * 2 + GAP : btnW;
+              const fg = isActive ? '#ff9f0a' : btn.fg;
+              const w = btn.flex === 2 ? btnSize * 2 + GAP : btnSize;
               return (
                 <TouchableOpacity
                   key={btn.label}
                   onPress={() => press(btn.action, 'val' in btn ? btn.val : undefined)}
                   style={[
                     styles.btn,
-                    { width: w, height: btnH, borderRadius: radius, backgroundColor: bg },
-                    'alignLeft' in btn && btn.alignLeft && { justifyContent: 'flex-start', paddingLeft: btnH * 0.35 },
+                    { width: w, height: btnSize, borderRadius: btnSize / 2, backgroundColor: bg },
                   ]}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.btnText, { color: fg, fontSize: btnH * 0.38 }]}>
+                  <Text style={[styles.btnText, { color: fg, fontSize }]}>
                     {btn.label}
                   </Text>
                 </TouchableOpacity>
