@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calculator">
+<meta name="theme-color" content="#1c1c1e">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Calculator</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+
+html { height: 100%; }
+
+body {
+  height: 100%;
+  background: #1c1c1e;
+  overflow: hidden;
+  font-family: -apple-system, 'Roboto', sans-serif;
+}
+
+.calc {
+  width: 100%;
+  height: 100%;
+  background: #1c1c1e;
+ display: flex;
+ flex-direction: column;
+}
+
+.display-area {
+  background: #1c1c1e;
+  padding: 8px 24px 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  position: relative;
+}
+
+.secret-label {
+  position: absolute;
+  top: 12px; left: 16px;
+  font-size: 10px; color: #ff9f0a; letter-spacing: 2px; font-weight: 700;
+  text-transform: uppercase;
+  opacity: 0; transition: opacity 0.2s;
+}
+.secret-label.show { opacity: 1; }
+
+.expression {
+  font-size: 20px; color: #888; min-height: 28px;
+  word-break: break-all; text-align: right; width: 100%;
+}
+
+.main-display {
+  font-size: 64px; color: #fff; font-weight: 300; letter-spacing: -2px;
+  line-height: 1.1; word-break: break-all; text-align: right; width: 100%;
+  transition: color 0.15s;
+}
+.main-display.secret-active { color: #ff9f0a; }
+
+.buttons {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: #3a3a3c;
+}
+
+.btn {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 400;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { filter: brightness(0.75); }
+
+.btn-func { background: #2c2c2e; color: #fff; }
+.btn-op   { background: #ff9f0a; color: #fff; }
+.btn-op.op-active { background: #fff; color: #ff9f0a; }
+.btn-num  { background: #1c1c1e; color: #fff; }
+.btn-zero {
+  background: #1c1c1e; color: #fff;
+  justify-content: flex-start;
+  padding-left: 28px;
+}
+.btn-eq { background: #ff9f0a; color: #fff; }
+</style>
+</head>
+<body>
+<div class="calc" id="calc">
+  <div class="display-area" id="displayArea">
+    <div class="secret-label" id="secretLabel">SET FORCE NUMBER</div>
+    <div class="expression"   id="expression"></div>
+    <div class="main-display" id="display">0</div>
+  </div>
+
+  <div class="buttons" id="buttons">
+    <div class="btn btn-func" data-action="clear">AC</div>
+    <div class="btn btn-func" data-action="sign">+/−</div>
+    <div class="btn btn-func" data-action="percent">%</div>
+    <div class="btn btn-op"   data-action="op" data-op="÷">÷</div>
+
+    <div class="btn btn-num"  data-action="num" data-val="7">7</div>
+    <div class="btn btn-num"  data-action="num" data-val="8">8</div>
+    <div class="btn btn-num"  data-action="num" data-val="9">9</div>
+    <div class="btn btn-op"   data-action="op"  data-op="×">×</div>
+
+    <div class="btn btn-num"  data-action="num" data-val="4">4</div>
+    <div class="btn btn-num"  data-action="num" data-val="5">5</div>
+    <div class="btn btn-num"  data-action="num" data-val="6">6</div>
+    <div class="btn btn-op"   data-action="op"  data-op="−">−</div>
+
+    <div class="btn btn-num"  data-action="num" data-val="1">1</div>
+    <div class="btn btn-num"  data-action="num" data-val="2">2</div>
+    <div class="btn btn-num"  data-action="num" data-val="3">3</div>
+    <div class="btn btn-op"   data-action="op"  data-op="+">+</div>
+
+    <div class="btn btn-zero" data-action="num" data-val="0" style="grid-column:span 2;">0</div>
+    <div class="btn btn-num"  data-action="dot">.</div>
+    <div class="btn btn-eq"   data-action="equals">=</div>
+  </div>
+</div>
+
+<script>
+(function(){
+
+// ── Size buttons to fill screen exactly ───────────────────────────
+function sizeButtons() {
+  var totalH = window.innerHeight;
+  var btnAreaH = Math.floor(totalH * 0.58);
+  var rowH = Math.floor(btnAreaH / 5);
+  document.querySelectorAll('.btn').forEach(function(b) {
+    b.style.height = rowH + 'px';
+    b.style.fontSize = Math.max(20, Math.floor(rowH * 0.38)) + 'px';
+  });
+  document.getElementById('display').style.fontSize =
+    Math.max(40, Math.floor(totalH * 0.09)) + 'px';
+}
+sizeButtons();
+window.addEventListener('resize', sizeButtons);
+
+// ── State ─────────────────────────────────────────────────────────
+var current     = '0';
+var pendingOp   = null;
+var pendingVal  = null;
+var freshEntry  = true;
+var justEqualed = false;
+var lastOp      = null;
+var lastVal     = null;
+
+var secretMode    = false;
+var forceNumber   = null;
+var forceLocked   = false;
+var armedMode     = false;
+var armedTaps     = 0;
+var TAPS_NEEDED   = 3;
+var revealPending = false;
+var revealAddend  = null;
+var revealBase    = null;
+
+var lastTapTime   = 0;
+var DOUBLE_TAP_MS = 320;
+var lpTimer       = null;
+var LP_MS         = 800;
+
+// ── DOM ───────────────────────────────────────────────────────────
+var displayEl    = document.getElementById('display');
+var expressionEl = document.getElementById('expression');
+var displayArea  = document.getElementById('displayArea');
+var secretLabel  = document.getElementById('secretLabel');
+var clearBtn     = document.querySelector('[data-action="clear"]');
+
+// ── Helpers ───────────────────────────────────────────────────────
+function setDisplay(val) {
+  var s = String(val);
+  if (s !== 'Error') {
+    var n = parseFloat(s);
+    if (!isNaN(n)) s = parseFloat(n.toPrecision(12)).toString();
+    if (s.length > 13) s = parseFloat(parseFloat(s).toExponential(6)).toString();
+  }
+  current = s;
+  displayEl.textContent = s;
+}
+
+function evaluate(a, op, b) {
+  a = parseFloat(a); b = parseFloat(b);
+  if (op === '+') return a + b;
+  if (op === '−') return a - b;
+  if (op === '×') return a * b;
+  if (op === '÷') return b !== 0 ? a / b : 'Error';
+  return b;
+}
+
+function allOpBtns() { return document.querySelectorAll('.btn-op'); }
+
+// ── Secret mode ───────────────────────────────────────────────────
+function enterSecretMode() {
+  if (armedMode || revealPending) return;
+  secretMode = true;
+  current = '0'; freshEntry = true;
+  displayEl.textContent = '0';
+  displayEl.classList.add('secret-active');
+  secretLabel.classList.add('show');
+  expressionEl.textContent = forceLocked ? ('Force: ' + forceNumber) : 'Type number, press =';
+  clearBtn.textContent = 'C';
+}
+
+function exitSecretMode(confirmed) {
+  secretMode = false;
+  displayEl.classList.remove('secret-active');
+  secretLabel.classList.remove('show');
+  if (confirmed) {
+    current = '0'; freshEntry = true; justEqualed = false;
+    pendingOp = null; pendingVal = null;
+    expressionEl.textContent = '';
+    displayEl.textContent = '0';
+    clearBtn.textContent = 'AC';
+    armedMode = true;
+    armedTaps = 0;
+  } else {
+    displayEl.textContent = current;
+    expressionEl.textContent = '';
+  }
+}
+
+// ── Armed taps ────────────────────────────────────────────────────
+function countArmedTap() {
+  armedTaps++;
+  if (armedTaps >= TAPS_NEEDED) {
+    armedMode = false;
+    var base   = parseFloat(current) || 0;
+    var target = parseFloat(forceNumber);
+    var addend = parseFloat((target - base).toPrecision(10));
+    revealBase    = base;
+    revealAddend  = addend;
+    revealPending = true;
+    expressionEl.textContent = base + ' +';
+    setDisplay(addend.toString());
+    pendingOp  = '+';
+    pendingVal = base.toString();
+    freshEntry = true;
+  }
+}
+
+// ── Double-tap display to arm ─────────────────────────────────────
+function handleDisplayTap() {
+  if (secretMode) return;
+  if (armedMode) { countArmedTap(); return; }
+  if (revealPending) return;
+  var now = Date.now();
+  if (now - lastTapTime < DOUBLE_TAP_MS) {
+    lastTapTime = 0;
+    if (forceLocked) { armedMode = true; armedTaps = 0; }
+  } else {
+    lastTapTime = now;
+  }
+}
+
+// ── Action handler ────────────────────────────────────────────────
+function handleAction(action, extra) {
+
+  if (secretMode) {
+    if (action === 'num') {
+      if (freshEntry || current === '0') { current = extra; freshEntry = false; }
+      else if (current.length < 12) current += extra;
+      displayEl.textContent = current;
+    } else if (action === 'dot') {
+      if (freshEntry) { current = '0.'; freshEntry = false; }
+      else if (!current.includes('.')) current += '.';
+      displayEl.textContent = current;
+    } else if (action === 'clear') {
+      if (current !== '0' && !freshEntry) { current = '0'; freshEntry = true; displayEl.textContent = '0'; }
+      else exitSecretMode(false);
+    } else if (action === 'equals') {
+      var v = parseFloat(current);
+      if (!isNaN(v) && current !== '0') {
+        forceNumber = current; forceLocked = true; exitSecretMode(true);
+      } else { exitSecretMode(false); }
+    }
+    return;
+  }
+
+  if (armedMode) { countArmedTap(); return; }
+
+  if (revealPending) {
+    if (action === 'equals') {
+      revealPending = false;
+      expressionEl.textContent = revealBase + ' + ' + revealAddend + ' =';
+      setDisplay(parseFloat(forceNumber).toString());
+      pendingOp = null; pendingVal = null; freshEntry = true; justEqualed = true;
+    }
+    return;
+  }
+
+  if (action === 'clear') {
+    current = '0'; expressionEl.textContent = '';
+    pendingOp = null; pendingVal = null;
+    freshEntry = true; justEqualed = false; lastOp = null; lastVal = null;
+    setDisplay('0');
+    allOpBtns().forEach(function(b) { b.classList.remove('op-active'); });
+    clearBtn.textContent = 'AC';
+    return;
+  }
+  if (action === 'num') {
+    clearBtn.textContent = 'C';
+    if (justEqualed) { current = extra; justEqualed = false; expressionEl.textContent = ''; }
+    else if (freshEntry || current === '0') { current = extra; freshEntry = false; }
+    else { if (current.length < 12) current += extra; }
+    setDisplay(current); return;
+  }
+  if (action === 'dot') {
+    clearBtn.textContent = 'C';
+    if (justEqualed) { current = '0.'; justEqualed = false; freshEntry = false; }
+    else if (freshEntry) { current = '0.'; freshEntry = false; }
+    else if (!current.includes('.')) current += '.';
+    setDisplay(current); return;
+  }
+  if (action === 'sign') { setDisplay((-parseFloat(current)).toString()); return; }
+  if (action === 'percent') {
+    if (pendingOp === '+' || pendingOp === '−')
+      setDisplay((parseFloat(pendingVal) * parseFloat(current) / 100).toString());
+    else setDisplay((parseFloat(current) / 100).toString());
+    return;
+  }
+  if (action === 'op') {
+    var op = extra;
+    allOpBtns().forEach(function(b) { b.classList.remove('op-active'); });
+    document.querySelector('[data-op="' + op + '"]').classList.add('op-active');
+    if (pendingOp && !freshEntry) {
+      var r = evaluate(pendingVal, pendingOp, current);
+      setDisplay(r); pendingVal = r.toString();
+    } else { pendingVal = current; }
+    pendingOp = op; freshEntry = true; justEqualed = false;
+    expressionEl.textContent = pendingVal + ' ' + op;
+    lastOp = op; lastVal = current; return;
+  }
+  if (action === 'equals') {
+    allOpBtns().forEach(function(b) { b.classList.remove('op-active'); });
+    if (justEqualed && lastOp && lastVal !== null) {
+      var r2 = evaluate(current, lastOp, lastVal);
+      expressionEl.textContent = current + ' ' + lastOp + ' ' + lastVal + ' =';
+      setDisplay(r2); freshEntry = true; return;
+    }
+    if (pendingOp && pendingVal !== null) {
+      lastOp = pendingOp; lastVal = current;
+      var r3 = evaluate(pendingVal, pendingOp, current);
+      expressionEl.textContent = pendingVal + ' ' + pendingOp + ' ' + current + ' =';
+      setDisplay(r3);
+      pendingOp = null; pendingVal = null; freshEntry = true; justEqualed = true;
+    }
+  }
+}
+
+// ── Wire buttons ──────────────────────────────────────────────────
+document.querySelectorAll('.btn').forEach(function(btn) {
+  btn.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    handleAction(btn.dataset.action, btn.dataset.op || btn.dataset.val || '');
+  }, { passive: false });
+  btn.addEventListener('click', function() {
+    handleAction(btn.dataset.action, btn.dataset.op || btn.dataset.val || '');
+  });
+});
+
+// ── Display area ──────────────────────────────────────────────────
+displayArea.addEventListener('touchstart', function(e) {
+  if (e.target.closest('.btn')) return;
+  lpTimer = setTimeout(enterSecretMode, LP_MS);
+  handleDisplayTap();
+}, { passive: true });
+displayArea.addEventListener('touchend',   function() { clearTimeout(lpTimer); });
+displayArea.addEventListener('touchmove',  function() { clearTimeout(lpTimer); });
+displayArea.addEventListener('mousedown',  function(e) {
+  if (e.target.closest('.btn')) return;
+  lpTimer = setTimeout(enterSecretMode, LP_MS);
+});
+displayArea.addEventListener('mouseup',    function() { clearTimeout(lpTimer); });
+displayArea.addEventListener('mouseleave', function() { clearTimeout(lpTimer); });
+displayArea.addEventListener('click',      function(e) {
+  if (e.target.closest('.btn')) return;
+  handleDisplayTap();
+});
+
+// ── Keyboard ──────────────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key >= '0' && e.key <= '9') handleAction('num', e.key);
+  else if (e.key === '.') handleAction('dot', '');
+  else if (e.key === '+') handleAction('op', '+');
+  else if (e.key === '-') handleAction('op', '−');
+  else if (e.key === '*') handleAction('op', '×');
+  else if (e.key === '/') { e.preventDefault(); handleAction('op', '÷'); }
+  else if (e.key === 'Enter' || e.key === '=') handleAction('equals', '');
+  else if (e.key === 'Escape') handleAction('clear', '');
+});
+
+// ── Register service worker ───────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(function() {});
+}
+
+})();
+</script>
+</body>
+</html>
