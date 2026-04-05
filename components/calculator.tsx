@@ -143,8 +143,6 @@ export default function Calculator() {
             p.equaled     = false;
             p.pending     = null;
             p.pval        = null;
-            p.armedMode   = true;
-            p.armedTaps   = 0;
           } else {
             p.secretMode = false;
             p.expr = '';
